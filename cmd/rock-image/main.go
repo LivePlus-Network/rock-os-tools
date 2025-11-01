@@ -68,10 +68,13 @@ func CreateCPIO(rootfsPath string) error {
 		return fmt.Errorf("failed to walk rootfs: %w", err)
 	}
 
+	// Get absolute path for temp cpio
+	absTempCpio, _ := filepath.Abs(tempCpio)
+
 	// Create CPIO using find and cpio commands
 	cmd := exec.Command("sh", "-c",
-		fmt.Sprintf("cd %s && find . -print | cpio -o -H newc > %s/%s 2>/dev/null",
-			rootfsPath, filepath.Dir(outputPath), tempCpio))
+		fmt.Sprintf("cd %s && find . -print | cpio -o -H newc > %s 2>/dev/null",
+			rootfsPath, absTempCpio))
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -82,7 +85,7 @@ func CreateCPIO(rootfsPath string) error {
 
 	// Compress with gzip
 	fmt.Println("\nStep 3: Compressing with gzip...")
-	cpioData, err := ioutil.ReadFile(tempCpio)
+	cpioData, err := ioutil.ReadFile(absTempCpio)
 	if err != nil {
 		return fmt.Errorf("failed to read cpio: %w", err)
 	}
@@ -101,7 +104,7 @@ func CreateCPIO(rootfsPath string) error {
 	}
 
 	// Clean up temp file
-	os.Remove(tempCpio)
+	os.Remove(absTempCpio)
 
 	// Get file size
 	gzWriter.Close()
