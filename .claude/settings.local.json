@@ -6,7 +6,9 @@
       "Bash(./bin/darwin/rock-kernel:*)",
       "Bash(./bin/darwin/rock-verify:*)",
       "Bash(./bin/darwin/rock-image:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nImplement critical rock-init integration layer for ROCK-OS tools\n\nThis commit establishes the integration contract between rock-os-tools and rock-init,\nensuring all tools follow the exact hardcoded paths required for ROCK-OS to boot.\n\nKey changes:\n- Created pkg/integration package with hardcoded paths from rock-init\n- Fixed rock-kernel to use correct ''init='' (not ''rdinit='') parameter\n- Implemented rock-verify tool for integration verification\n- Implemented rock-image tool with proper path handling\n- All paths are now centralized in pkg/integration to prevent errors\n\nCRITICAL INTEGRATION PATHS (hardcoded in rock-init):\n- rock-init MUST be renamed to /sbin/init\n- rock-manager MUST be at /usr/bin/rock-manager  \n- volcano-agent MUST be at /usr/bin/volcano-agent\n- Shell MUST be at /bin/sh (symlink to busybox)\n\nTools implemented:\n- rock-kernel: Now uses correct init=/sbin/init cmdline\n- rock-verify: Validates images meet integration requirements\n- rock-image: Creates initramfs with correct structure\n\nThis ensures ROCK-OS will boot successfully by maintaining\nthe exact file structure expected by rock-init.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(chmod:*)"
     ],
     "deny": [],
     "ask": []
