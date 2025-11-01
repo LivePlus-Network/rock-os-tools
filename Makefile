@@ -9,7 +9,8 @@
 #   make help           - Show this help
 
 # Load configuration
--include config.env
+# Note: config.env is for shell scripts, not Makefile
+# -include config.env
 
 # Version management
 VERSION ?= $(shell cat VERSION 2>/dev/null || echo "0.1.0")

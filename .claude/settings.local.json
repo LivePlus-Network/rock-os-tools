@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(make:*)",
+      "Bash(./bin/darwin/rock-kernel:*)",
+      "Bash(./bin/darwin/rock-verify:*)",
+      "Bash(./bin/darwin/rock-image:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

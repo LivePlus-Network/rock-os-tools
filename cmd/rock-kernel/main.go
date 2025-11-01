@@ -29,6 +29,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/rock-os/tools/pkg/integration"
 )
 
 // KernelSpec represents a kernel specification
@@ -75,18 +77,25 @@ func NewKernelManager() *KernelManager {
 // getDefaultRegistry returns the default kernel registry
 func getDefaultRegistry() map[string]KernelSpec {
 	return map[string]KernelSpec{
-		"alpine:5.10.186": {
+		"alpine:5.10.180": {
 			Name:     "alpine",
-			Version:  "5.10.186",
+			Version:  "5.10.180",
 			Arch:     "x86_64",
-			URL:      "https://dl-cdn.alpinelinux.org/alpine/v3.18/main/x86_64/linux-lts-5.10.186-r0.apk",
+			URL:      "https://dl-cdn.alpinelinux.org/alpine/v3.14/main/x86_64/linux-lts-5.10.180-r0.apk",
 			Checksum: "sha256:1234567890abcdef", // TODO: Add real checksum
 		},
-		"alpine:5.10.186-hardened": {
-			Name:     "alpine-hardened",
-			Version:  "5.10.186",
+		"alpine:6.1.140": {
+			Name:     "alpine",
+			Version:  "6.1.140",
 			Arch:     "x86_64",
-			URL:      "https://dl-cdn.alpinelinux.org/alpine/v3.18/main/x86_64/linux-hardened-5.10.186-r0.apk",
+			URL:      "https://dl-cdn.alpinelinux.org/alpine/v3.18/main/x86_64/linux-lts-6.1.140-r0.apk",
+			Checksum: "sha256:1234567890abcdef", // TODO: Add real checksum
+		},
+		"alpine:5.10.180-hardened": {
+			Name:     "alpine-hardened",
+			Version:  "5.10.180",
+			Arch:     "x86_64",
+			URL:      "https://dl-cdn.alpinelinux.org/alpine/v3.14/main/x86_64/linux-hardened-5.10.180-r0.apk",
 			Checksum: "sha256:fedcba0987654321", // TODO: Add real checksum
 		},
 		"alpine:latest": {
@@ -400,14 +409,13 @@ func cmdCmdline(args []string) error {
 		mode = args[0]
 	}
 
-	cmdlines := map[string]string{
-		"debug":      "console=ttyS0 debug init=/sbin/init net.ifnames=0",
-		"production": "quiet init=/sbin/init net.ifnames=0 security=selinux",
-	}
+	// Use the integration package to get the correct cmdline
+	// This ensures we ALWAYS use the correct init path
+	cmdline := integration.GetKernelCmdline(mode)
 
-	cmdline, exists := cmdlines[mode]
-	if !exists {
-		return fmt.Errorf("unknown mode: %s", mode)
+	// Validate the cmdline to ensure it's correct
+	if err := integration.ValidateKernelCmdline(cmdline); err != nil {
+		return fmt.Errorf("invalid kernel cmdline: %w", err)
 	}
 
 	fmt.Println(cmdline)
