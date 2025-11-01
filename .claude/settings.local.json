@@ -21,7 +21,9 @@
       "Bash(GOOS=linux GOARCH=amd64 go build:*)",
       "Bash(GOOS=linux GOARCH=amd64 CGO_ENABLED=1 go build:*)",
       "Bash(ROCK_OUTPUT=json ./bin/darwin/rock-deps:*)",
-      "Bash(ROCK_OUTPUT=json ./bin/darwin/rock-build:*)"
+      "Bash(ROCK_OUTPUT=json ./bin/darwin/rock-build:*)",
+      "Bash(./bin/darwin/rock-config:*)",
+      "Bash(test-config.json)"
     ],
     "deny": [],
     "ask": []
