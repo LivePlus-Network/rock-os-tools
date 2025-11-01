@@ -1,0 +1,20 @@
+# debug-build.yaml - Example debug build pipeline
+name: debug-build
+stages:
+  - name: fetch-kernel
+    tool: rock-kernel
+    args: ["fetch", "alpine:5.10.186"]
+
+  - name: scan-deps
+    tool: rock-deps
+    args: ["scan", "./experiment"]
+
+  - name: build-components
+    tool: rock-build
+    args: ["all", "--mode", "debug"]
+    depends: ["scan-deps"]
+
+  - name: create-image
+    tool: rock-image
+    args: ["cpio", "create", "./rootfs", "--output", "debug.cpio.gz"]
+    depends: ["fetch-kernel", "build-components"]
