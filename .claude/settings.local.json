@@ -23,7 +23,10 @@
       "Bash(ROCK_OUTPUT=json ./bin/darwin/rock-deps:*)",
       "Bash(ROCK_OUTPUT=json ./bin/darwin/rock-build:*)",
       "Bash(./bin/darwin/rock-config:*)",
-      "Bash(test-config.json)"
+      "Bash(test-config.json)",
+      "Bash(./bin/darwin/rock-security:*)",
+      "Bash(ROCK_KEY_DIR=test-security/etc/rock/keys ./bin/darwin/rock-security:*)",
+      "Bash(test-security/test.txt)"
     ],
     "deny": [],
     "ask": []
