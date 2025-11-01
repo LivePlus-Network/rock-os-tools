@@ -1,0 +1,215 @@
+name: build-rock-os
+description: Complete ROCK-OS build pipeline from source to bootable image
+version: 1.0.0
+
+# Environment variables
+env:
+  BUILD_DIR: /tmp/rock-build
+  ROOTFS_DIR: /tmp/rock-rootfs
+  OUTPUT_DIR: ./output
+  ROCK_OS_ROOT: /Volumes/4TB/ROCK-MASTER
+  BUILD_MODE: debug  # or production
+
+# Pipeline stages
+stages:
+  # Stage 1: Build all ROCK-OS components from source
+  - name: build-components
+    tool: rock-build
+    command: all
+    args:
+      - --mode=${BUILD_MODE}
+      - --output=${BUILD_DIR}
+    description: Build rock-init, rock-manager, and volcano-agent
+    on_failure: stop
+
+  # Stage 2: Prepare rootfs directory structure
+  - name: prepare-rootfs
+    tool: bash
+    command: |
+      rm -rf ${ROOTFS_DIR}
+      mkdir -p ${ROOTFS_DIR}/{bin,sbin,usr/bin,etc/rock,config,proc,sys,dev,tmp,run,var/log,lib}
+    description: Create rootfs directory structure
+    on_failure: stop
+
+  # Stage 3: Copy built binaries to correct locations
+  - name: install-binaries
+    tool: bash
+    command: |
+      # CRITICAL: Use exact paths that rock-init expects
+      cp ${BUILD_DIR}/rock-init ${ROOTFS_DIR}/sbin/init
+      cp ${BUILD_DIR}/rock-manager ${ROOTFS_DIR}/usr/bin/rock-manager
+      cp ${BUILD_DIR}/volcano-agent ${ROOTFS_DIR}/usr/bin/volcano-agent
+      chmod 755 ${ROOTFS_DIR}/sbin/init
+      chmod 755 ${ROOTFS_DIR}/usr/bin/rock-manager
+      chmod 755 ${ROOTFS_DIR}/usr/bin/volcano-agent
+    description: Install binaries at rock-init expected paths
+    on_failure: stop
+
+  # Stage 4: Install BusyBox
+  - name: install-busybox
+    tool: bash
+    command: |
+      # Download BusyBox if not cached
+      BUSYBOX_PATH="${HOME}/.rock/cache/busybox-1.35.0"
+      if [ ! -f "$BUSYBOX_PATH" ]; then
+        curl -L -o "$BUSYBOX_PATH" \
+          https://busybox.net/downloads/binaries/1.35.0-x86_64-linux-musl/busybox
+        chmod 755 "$BUSYBOX_PATH"
+      fi
+      cp "$BUSYBOX_PATH" ${ROOTFS_DIR}/bin/busybox
+
+      # Create essential symlinks
+      cd ${ROOTFS_DIR}/bin
+      for cmd in sh ls cat ps echo mount umount sleep grep find; do
+        ln -sf busybox $cmd
+      done
+    description: Install BusyBox and create symlinks
+    on_failure: stop
+
+  # Stage 5: Scan and copy dependencies
+  - name: scan-dependencies
+    tool: rock-deps
+    command: copy
+    args:
+      - ${ROOTFS_DIR}/sbin/init
+      - ${ROOTFS_DIR}/lib
+    description: Copy init dependencies
+    on_failure: continue
+
+  - name: scan-manager-deps
+    tool: rock-deps
+    command: copy
+    args:
+      - ${ROOTFS_DIR}/usr/bin/rock-manager
+      - ${ROOTFS_DIR}/lib
+    description: Copy rock-manager dependencies
+    on_failure: continue
+
+  - name: scan-agent-deps
+    tool: rock-deps
+    command: copy
+    args:
+      - ${ROOTFS_DIR}/usr/bin/volcano-agent
+      - ${ROOTFS_DIR}/lib
+    description: Copy volcano-agent dependencies
+    on_failure: continue
+
+  # Stage 6: Generate configuration
+  - name: generate-config
+    tool: rock-config
+    command: generate
+    args:
+      - node
+      - --output=${ROOTFS_DIR}/etc/rock/config.yaml
+      - --node-id=test-node
+      - --mac=a4:58:0f:00:00:01
+      - --volcano=localhost:50061
+    description: Generate node configuration
+    on_failure: stop
+
+  # Stage 7: Generate security keys (if needed)
+  - name: generate-keys
+    tool: rock-security
+    command: keygen
+    args:
+      - --output=${ROOTFS_DIR}/config/CONFIG_KEY
+    description: Generate encryption keys
+    on_failure: continue
+
+  # Stage 8: Create device nodes
+  - name: create-devices
+    tool: bash
+    command: |
+      cd ${ROOTFS_DIR}/dev
+      sudo mknod -m 666 null c 1 3 2>/dev/null || true
+      sudo mknod -m 666 zero c 1 5 2>/dev/null || true
+      sudo mknod -m 666 random c 1 8 2>/dev/null || true
+      sudo mknod -m 666 urandom c 1 9 2>/dev/null || true
+      sudo mknod -m 666 tty c 5 0 2>/dev/null || true
+      sudo mknod -m 666 console c 5 1 2>/dev/null || true
+    description: Create device nodes
+    on_failure: continue
+
+  # Stage 9: Build initramfs image
+  - name: create-image
+    tool: rock-image
+    command: cpio
+    subcommand: create
+    args:
+      - ${ROOTFS_DIR}
+      - --output=${OUTPUT_DIR}/rock-os.cpio.gz
+      - --compress=gzip
+    description: Create compressed initramfs image
+    on_failure: stop
+
+  # Stage 10: Verify integration
+  - name: verify-integration
+    tool: rock-verify
+    command: integration
+    args:
+      - ${OUTPUT_DIR}/rock-os.cpio.gz
+    description: Verify rock-init integration requirements
+    on_failure: stop
+
+  # Stage 11: Verify structure
+  - name: verify-structure
+    tool: rock-verify
+    command: structure
+    args:
+      - ${OUTPUT_DIR}/rock-os.cpio.gz
+    description: Verify filesystem structure
+    on_failure: warn
+
+  # Stage 12: Verify dependencies
+  - name: verify-dependencies
+    tool: rock-verify
+    command: dependencies
+    args:
+      - ${OUTPUT_DIR}/rock-os.cpio.gz
+    description: Verify all dependencies present
+    on_failure: warn
+
+  # Stage 13: Download kernel if needed
+  - name: fetch-kernel
+    tool: rock-kernel
+    command: fetch
+    args:
+      - alpine:5.10.180
+    description: Download Alpine Linux kernel
+    on_failure: stop
+
+  # Stage 14: Extract kernel
+  - name: extract-kernel
+    tool: bash
+    command: |
+      KERNEL_PATH="${HOME}/.rock/kernels/vmlinuz"
+      if [ ! -f "$KERNEL_PATH" ]; then
+        rock-kernel extract ${HOME}/.rock/kernels/alpine-5.10.180.apk
+      fi
+      cp "$KERNEL_PATH" ${OUTPUT_DIR}/vmlinuz
+    description: Extract vmlinuz from APK
+    on_failure: stop
+
+  # Stage 15: Cache the build
+  - name: cache-build
+    tool: rock-cache
+    command: store
+    args:
+      - rock-os-${BUILD_MODE}
+      - ${OUTPUT_DIR}/rock-os.cpio.gz
+    description: Cache the built image
+    on_failure: continue
+
+# Post-pipeline actions
+post_actions:
+  success:
+    - echo "✅ Build complete! Image at: ${OUTPUT_DIR}/rock-os.cpio.gz"
+    - echo "📦 Kernel at: ${OUTPUT_DIR}/vmlinuz"
+    - ls -lh ${OUTPUT_DIR}/
+    - echo ""
+    - echo "To test in QEMU, run:"
+    - echo "  ./scripts/test-boot.sh ${OUTPUT_DIR}/vmlinuz ${OUTPUT_DIR}/rock-os.cpio.gz"
+
+  failure:
+    - echo "❌ Build failed at stage: ${FAILED_STAGE}"
+    - echo "Check logs for details"

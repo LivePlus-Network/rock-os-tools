@@ -1,24 +1,39 @@
 # ROCK-OS Tools
 
+✅ **STATUS: FULLY FUNCTIONAL** - Pipeline successfully builds and boots ROCK-OS with rock-init as PID 1!
+
 A suite of Go-based tools for building and managing ROCK-OS images.
 
 ## Quick Start
 
 ```bash
-# Build all tools
-make build
-
-# Install to ROCK-MASTER
-make install
+# Build and install all tools
+make build && make install
 
 # Add to PATH
 export PATH="$PATH:/Volumes/4TB/ROCK-MASTER/bin/tools"
 
-# Use tools
-rock-kernel fetch alpine:5.10.186
-rock-deps scan ./experiment
-rock-build all --mode debug
+# Run the complete pipeline (builds bootable ROCK-OS image)
+./scripts/quick-test.sh
+
+# Test boot in QEMU
+./scripts/test-boot.sh output/vmlinuz output/rock-os-final.cpio.gz
 ```
+
+## Working Pipeline
+
+The pipeline creates a bootable ROCK-OS image that successfully runs rock-init as PID 1:
+
+```bash
+# Full pipeline with all steps
+rock-compose run pipelines/build-rock-os.yaml
+
+# Or use the quick test script
+./scripts/quick-test.sh
+```
+
+### Critical Boot Parameter
+**IMPORTANT**: Use `rdinit=/sbin/init` (not `init=/sbin/init`) for initramfs-based systems
 
 ## Tools
 

@@ -72,8 +72,10 @@ func CreateCPIO(rootfsPath string) error {
 	absTempCpio, _ := filepath.Abs(tempCpio)
 
 	// Create CPIO using find and cpio commands
+	// CRITICAL: Use paths without leading "./" for kernel to mount properly
+	// Using find * instead of find . to avoid "./" prefix naturally
 	cmd := exec.Command("sh", "-c",
-		fmt.Sprintf("cd %s && find . -print | cpio -o -H newc > %s 2>/dev/null",
+		fmt.Sprintf("cd %s && find * -print0 | cpio -o -H newc -0 > %s 2>/dev/null",
 			rootfsPath, absTempCpio))
 
 	output, err := cmd.CombinedOutput()

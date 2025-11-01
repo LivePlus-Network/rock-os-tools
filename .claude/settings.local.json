@@ -30,7 +30,22 @@
       "Bash(test-pipeline.json)",
       "Bash(pipelines/example.yaml)",
       "Bash(pipelines/example.json)",
-      "Bash(pipelines/minimal.json)"
+      "Bash(pipelines/minimal.json)",
+      "Bash(./bin/darwin/rock-cache version:*)",
+      "Bash(test-artifact.txt)",
+      "Bash(./bin/darwin/rock-cache store:*)",
+      "Bash(./bin/darwin/rock-cache:*)",
+      "Bash(cat:*)",
+      "Bash(mock-binary.bin)",
+      "Bash(ROCK_OUTPUT=json ./bin/darwin/rock-cache list:*)",
+      "Bash(./bin/darwin/rock-registry version:*)",
+      "Bash(./bin/darwin/rock-registry list:*)",
+      "Bash(./bin/darwin/rock-registry init:*)",
+      "Bash(./bin/darwin/rock-registry get:*)",
+      "Bash(./bin/darwin/rock-registry search:*)",
+      "Bash(./bin/darwin/rock-registry add:*)",
+      "Bash(./bin/darwin/rock-registry:*)",
+      "Bash(ROCK_OUTPUT=json ./bin/darwin/rock-registry list:*)"
     ],
     "deny": [],
     "ask": []
