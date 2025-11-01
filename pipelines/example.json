@@ -1,0 +1,55 @@
+{
+  "name": "example",
+  "version": "1.0",
+  "description": "Example pipeline showing basic structure",
+  "variables": {
+    "BUILD_DIR": "./build",
+    "OUTPUT_DIR": "./output"
+  },
+  "stages": [
+    {
+      "name": "prepare",
+      "steps": [
+        {
+          "name": "Create directories",
+          "tool": "",
+          "command": "mkdir -p ${BUILD_DIR} ${OUTPUT_DIR}"
+        },
+        {
+          "name": "Check environment",
+          "tool": "build",
+          "command": "check"
+        }
+      ]
+    },
+    {
+      "name": "build",
+      "steps": [
+        {
+          "name": "Build rock-init",
+          "tool": "build",
+          "command": "init"
+        }
+      ],
+      "depends_on": [
+        "prepare"
+      ]
+    },
+    {
+      "name": "verify",
+      "steps": [
+        {
+          "name": "Scan dependencies",
+          "tool": "deps",
+          "command": "scan",
+          "args": [
+            "${OUTPUT_DIR}/sbin/init"
+          ]
+        }
+      ],
+      "depends_on": [
+        "build"
+      ]
+    }
+  ]
+}

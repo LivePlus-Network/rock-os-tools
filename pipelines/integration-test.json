@@ -1,0 +1,230 @@
+{
+  "name": "integration-test",
+  "version": "1.0",
+  "description": "Complete integration test for rock-os-tools",
+  "variables": {
+    "TEST_DIR": "./test-integration",
+    "ROOTFS_DIR": "./test-integration/rootfs",
+    "OUTPUT_DIR": "./test-integration/output",
+    "BINARIES_DIR": "./test-integration/binaries"
+  },
+  "stages": [
+    {
+      "name": "prepare",
+      "steps": [
+        {
+          "name": "Clean test directory",
+          "command": "rm -rf ${TEST_DIR}"
+        },
+        {
+          "name": "Create test directories",
+          "command": "mkdir -p ${ROOTFS_DIR}/{sbin,bin,usr/bin,etc/rock,config,proc,sys,dev,tmp,run,var/log} ${OUTPUT_DIR} ${BINARIES_DIR}"
+        },
+        {
+          "name": "Initialize security",
+          "tool": "security",
+          "command": "keygen"
+        }
+      ]
+    },
+    {
+      "name": "create-mock-binaries",
+      "depends": ["prepare"],
+      "steps": [
+        {
+          "name": "Create mock rock-init",
+          "command": "echo '#!/bin/sh\necho \"rock-init starting...\"' > ${BINARIES_DIR}/rock-init && chmod +x ${BINARIES_DIR}/rock-init"
+        },
+        {
+          "name": "Create mock rock-manager",
+          "command": "echo '#!/bin/sh\necho \"rock-manager running\"' > ${BINARIES_DIR}/rock-manager && chmod +x ${BINARIES_DIR}/rock-manager"
+        },
+        {
+          "name": "Create mock volcano-agent",
+          "command": "echo '#!/bin/sh\necho \"volcano-agent running\"' > ${BINARIES_DIR}/volcano-agent && chmod +x ${BINARIES_DIR}/volcano-agent"
+        },
+        {
+          "name": "Create mock busybox",
+          "command": "echo '#!/bin/sh\ncase \"$1\" in sh) exec /bin/sh ;; *) echo \"busybox $@\" ;; esac' > ${BINARIES_DIR}/busybox && chmod +x ${BINARIES_DIR}/busybox"
+        }
+      ]
+    },
+    {
+      "name": "scan-dependencies",
+      "depends": ["create-mock-binaries"],
+      "parallel": true,
+      "steps": [
+        {
+          "name": "Scan rock-init deps",
+          "tool": "deps",
+          "command": "scan",
+          "args": ["${BINARIES_DIR}/rock-init"],
+          "continue_on": "error"
+        },
+        {
+          "name": "Scan rock-manager deps",
+          "tool": "deps",
+          "command": "scan",
+          "args": ["${BINARIES_DIR}/rock-manager"],
+          "continue_on": "error"
+        },
+        {
+          "name": "Scan volcano-agent deps",
+          "tool": "deps",
+          "command": "scan",
+          "args": ["${BINARIES_DIR}/volcano-agent"],
+          "continue_on": "error"
+        }
+      ]
+    },
+    {
+      "name": "prepare-rootfs",
+      "depends": ["scan-dependencies"],
+      "steps": [
+        {
+          "name": "Copy rock-init as /sbin/init",
+          "command": "cp ${BINARIES_DIR}/rock-init ${ROOTFS_DIR}/sbin/init"
+        },
+        {
+          "name": "Copy rock-manager",
+          "command": "cp ${BINARIES_DIR}/rock-manager ${ROOTFS_DIR}/usr/bin/"
+        },
+        {
+          "name": "Copy volcano-agent",
+          "command": "cp ${BINARIES_DIR}/volcano-agent ${ROOTFS_DIR}/usr/bin/"
+        },
+        {
+          "name": "Copy busybox",
+          "command": "cp ${BINARIES_DIR}/busybox ${ROOTFS_DIR}/bin/"
+        },
+        {
+          "name": "Create shell symlink",
+          "command": "cd ${ROOTFS_DIR}/bin && ln -sf busybox sh"
+        }
+      ]
+    },
+    {
+      "name": "generate-configs",
+      "depends": ["prepare"],
+      "parallel": true,
+      "steps": [
+        {
+          "name": "Generate node config",
+          "tool": "config",
+          "command": "generate",
+          "args": ["node"]
+        },
+        {
+          "name": "Generate manager config",
+          "tool": "config",
+          "command": "generate",
+          "args": ["manager"]
+        },
+        {
+          "name": "Generate agent config",
+          "tool": "config",
+          "command": "generate",
+          "args": ["agent"]
+        }
+      ]
+    },
+    {
+      "name": "security-operations",
+      "depends": ["prepare-rootfs", "generate-configs"],
+      "steps": [
+        {
+          "name": "Sign mock binaries",
+          "tool": "security",
+          "command": "sign",
+          "args": ["${ROOTFS_DIR}/sbin/init"]
+        },
+        {
+          "name": "Create test file for encryption",
+          "command": "echo 'test data' > ${TEST_DIR}/test.txt"
+        },
+        {
+          "name": "Sign test file",
+          "tool": "security",
+          "command": "sign",
+          "args": ["${TEST_DIR}/test.txt"]
+        },
+        {
+          "name": "Verify signature",
+          "tool": "security",
+          "command": "verify",
+          "args": ["${TEST_DIR}/test.txt"]
+        }
+      ]
+    },
+    {
+      "name": "create-image",
+      "depends": ["prepare-rootfs", "security-operations"],
+      "steps": [
+        {
+          "name": "Create initramfs image",
+          "tool": "image",
+          "command": "cpio",
+          "args": ["create", "${ROOTFS_DIR}"]
+        }
+      ]
+    },
+    {
+      "name": "verify-image",
+      "depends": ["create-image"],
+      "steps": [
+        {
+          "name": "Verify image structure",
+          "tool": "verify",
+          "command": "integration",
+          "args": ["initrd.cpio.gz"]
+        },
+        {
+          "name": "Extract image for inspection",
+          "tool": "image",
+          "command": "cpio",
+          "args": ["extract", "initrd.cpio.gz", "${TEST_DIR}/extracted"]
+        },
+        {
+          "name": "List extracted contents",
+          "command": "ls -la ${TEST_DIR}/extracted/{sbin,bin,usr/bin}/ 2>/dev/null || echo 'Some paths missing (expected for mock test)'"
+        }
+      ]
+    },
+    {
+      "name": "kernel-operations",
+      "depends": ["create-image"],
+      "steps": [
+        {
+          "name": "Get kernel command line",
+          "tool": "kernel",
+          "command": "cmdline",
+          "args": ["debug"]
+        },
+        {
+          "name": "Check kernel modules",
+          "tool": "kernel",
+          "command": "modules",
+          "continue_on": "error"
+        }
+      ]
+    },
+    {
+      "name": "cleanup",
+      "depends": ["verify-image", "kernel-operations"],
+      "steps": [
+        {
+          "name": "Clean test directory",
+          "command": "rm -rf ${TEST_DIR}"
+        },
+        {
+          "name": "Clean generated image",
+          "command": "rm -f initrd.cpio.gz"
+        },
+        {
+          "name": "Report success",
+          "command": "echo '✅ Integration test completed successfully'"
+        }
+      ]
+    }
+  ]
+}

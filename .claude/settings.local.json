@@ -26,7 +26,11 @@
       "Bash(test-config.json)",
       "Bash(./bin/darwin/rock-security:*)",
       "Bash(ROCK_KEY_DIR=test-security/etc/rock/keys ./bin/darwin/rock-security:*)",
-      "Bash(test-security/test.txt)"
+      "Bash(test-security/test.txt)",
+      "Bash(test-pipeline.json)",
+      "Bash(pipelines/example.yaml)",
+      "Bash(pipelines/example.json)",
+      "Bash(pipelines/minimal.json)"
     ],
     "deny": [],
     "ask": []
