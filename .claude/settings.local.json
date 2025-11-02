@@ -45,7 +45,14 @@
       "Bash(./bin/darwin/rock-registry search:*)",
       "Bash(./bin/darwin/rock-registry add:*)",
       "Bash(./bin/darwin/rock-registry:*)",
-      "Bash(ROCK_OUTPUT=json ./bin/darwin/rock-registry list:*)"
+      "Bash(ROCK_OUTPUT=json ./bin/darwin/rock-registry list:*)",
+      "Bash(git remote add:*)",
+      "Bash(git push:*)",
+      "Bash(gh repo create:*)",
+      "Bash(git remote:*)",
+      "Bash(gh auth:*)",
+      "Bash(gh repo view:*)",
+      "Bash(git rm:*)"
     ],
     "deny": [],
     "ask": []

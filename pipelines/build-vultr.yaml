@@ -1,0 +1,176 @@
+# Vultr-Optimized ROCK-OS Build Pipeline
+# Creates a bootable image for Vultr cloud instances with full VirtIO support
+
+name: build-vultr
+description: Build ROCK-OS image optimized for Vultr cloud platform
+
+metadata:
+  platform: vultr
+  kernel: alpine-virt  # Alpine virt kernel includes all VirtIO drivers
+  output: vultr-rock-os.cpio.gz
+  requirements:
+    - VirtIO block device support (virtio_blk)
+    - VirtIO network support (virtio_net)
+    - VirtIO console support (virtio_console)
+    - NVMe support for modern instances
+    - Serial console on ttyS0
+
+# Vultr-specific kernel parameters
+kernel_params:
+  console: ttyS0,115200n8
+  earlyprintk: ttyS0
+  rdinit: /sbin/init
+  quiet: false
+  debug: true
+  # Vultr-specific optimizations
+  virtio_net.napi_weight: 128
+  virtio_blk.queue_depth: 256
+
+stages:
+  - name: fetch-vultr-kernel
+    tool: rock-kernel
+    command: fetch
+    args:
+      - alpine:virt  # Use virt kernel for VirtIO support
+    description: Fetch Alpine virt kernel optimized for virtualization
+
+  - name: build-components
+    tool: rock-build
+    command: all
+    args:
+      - --mode=release
+      - --target=x86_64-unknown-linux-musl
+      - --features=vultr
+    description: Build ROCK-OS components for Vultr
+
+  - name: prepare-rootfs
+    tool: rock-build
+    command: rootfs
+    args:
+      - --clean
+    description: Prepare clean rootfs structure
+
+  - name: fetch-busybox
+    tool: rock-deps
+    command: fetch
+    args:
+      - busybox:1.35.0
+    description: Download BusyBox for base utilities
+
+  - name: install-binaries
+    tool: rock-build
+    command: install
+    args:
+      - --rootfs=/tmp/rock-rootfs
+      - --rename-init  # Rename rock-init to /sbin/init
+    description: Install binaries with Vultr paths
+
+  - name: install-busybox
+    tool: rock-deps
+    command: install
+    args:
+      - busybox
+      - --rootfs=/tmp/rock-rootfs
+    description: Install BusyBox and create symlinks
+
+  - name: create-vultr-config
+    tool: rock-config
+    command: generate
+    args:
+      - --template=vultr
+      - --output=/tmp/rock-rootfs/config/vultr.conf
+    config:
+      platform: vultr
+      network:
+        interface: eth0  # Vultr uses eth0 for VirtIO network
+        dhcp: true
+      storage:
+        root_device: /dev/vda1  # Vultr typically uses vda for VirtIO block
+      console:
+        device: ttyS0
+        baudrate: 115200
+        params: n8
+    description: Generate Vultr-specific configuration
+
+  - name: create-device-nodes
+    tool: rock-image
+    command: devices
+    args:
+      - --rootfs=/tmp/rock-rootfs
+      - --vultr  # Create Vultr-specific device nodes
+    devices:
+      - /dev/console (5,1)  # Console device
+      - /dev/ttyS0 (4,64)   # Serial console
+      - /dev/vda (252,0)    # VirtIO block device
+      - /dev/null (1,3)
+      - /dev/zero (1,5)
+      - /dev/random (1,8)
+      - /dev/urandom (1,9)
+    description: Create device nodes for Vultr
+
+  - name: add-vultr-scripts
+    tool: rock-config
+    command: scripts
+    args:
+      - --vultr
+      - --rootfs=/tmp/rock-rootfs
+    scripts:
+      - network-init.sh  # VirtIO network initialization
+      - console-init.sh  # Serial console setup
+    description: Add Vultr initialization scripts
+
+  - name: create-vultr-image
+    tool: rock-image
+    command: cpio
+    subcommand: create
+    args:
+      - /tmp/rock-rootfs
+      - --output=vultr-rock-os.cpio.gz
+      - --compression=gzip
+      - --level=9
+    description: Create compressed Vultr initramfs
+
+  - name: verify-vultr-requirements
+    tool: rock-verify
+    command: vultr
+    args:
+      - vultr-rock-os.cpio.gz
+    checks:
+      - virtio_support: true
+      - console_device: /dev/ttyS0
+      - init_path: /sbin/init
+      - network_interface: eth0
+      - boot_time: "< 5s"
+    description: Verify Vultr compatibility
+
+  - name: package-for-vultr
+    tool: rock-image
+    command: package
+    args:
+      - --kernel=vmlinuz-virt
+      - --initrd=vultr-rock-os.cpio.gz
+      - --output=vultr-rock-os.tar.gz
+      - --format=vultr
+    description: Package for Vultr deployment
+
+outputs:
+  kernel: output/vmlinuz-virt
+  initramfs: output/vultr-rock-os.cpio.gz
+  package: output/vultr-rock-os.tar.gz
+  cmdline: "console=ttyS0,115200n8 earlyprintk=ttyS0 rdinit=/sbin/init"
+
+deployment:
+  platform: vultr
+  instructions: |
+    1. Upload vultr-rock-os.tar.gz to Vultr
+    2. Create custom ISO or use iPXE boot
+    3. Boot with kernel parameters:
+       console=ttyS0,115200n8 earlyprintk=ttyS0 rdinit=/sbin/init
+    4. Access via web console or SSH
+
+validation:
+  - VirtIO block devices detected
+  - VirtIO network interface active
+  - Serial console accessible
+  - Boot time under 5 seconds
+  - All services started successfully
