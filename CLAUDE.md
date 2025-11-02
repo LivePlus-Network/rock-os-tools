@@ -351,4 +351,263 @@ integration_contract:
 
 ---
 
+## 🔢 MAC Address Management - rock-mac Tool
+
+### Overview
+
+**rock-mac** is the centralized MAC address dispenser for ROCK OS nodes. It ensures:
+- All MAC addresses use the ROCK OS OUI: `a4:58:0f`
+- No duplicate MACs across all deployments
+- Organized pools for different environments
+- Full audit trail of allocations
+- SQLite database for persistence
+
+### Installation and Setup
+
+```bash
+# 1. Initialize database (first time only)
+cd /Volumes/4TB/rock-os-tools
+./scripts/init-mac-dispenser.sh
+
+# 2. Build rock-mac tool
+cd rock-mac
+make deps
+make build
+
+# 3. Install system-wide (optional)
+make install  # Installs to /usr/local/bin
+
+# 4. Verify installation
+rock-mac --version
+rock-mac stats
+```
+
+### Configuration
+
+**Database Location**: `~/.rock/mac-dispenser.db`
+**Config File**: `configs/mac-dispenser.yaml`
+
+### Pools
+
+| Pool | Range | Auto-Release | Usage |
+|------|-------|--------------|-------|
+| production | a4:58:0f:00:00:01 - a4:58:0f:00:ff:ff | Never | Production nodes |
+| development | a4:58:0f:01:00:00 - a4:58:0f:01:ff:ff | 7 days | Dev/test nodes |
+| experiment | a4:58:0f:02:00:00 - a4:58:0f:02:ff:ff | 1 day | Quick experiments |
+| vultr | a4:58:0f:03:00:00 - a4:58:0f:03:ff:ff | 30 days | Vultr cloud VMs |
+| docker | a4:58:0f:04:00:00 - a4:58:0f:04:ff:ff | 1 day | Docker containers |
+| kubernetes | a4:58:0f:05:00:00 - a4:58:0f:05:ff:ff | 1 day | K8s pods |
+| reserved | a4:58:0f:ff:00:00 - a4:58:0f:ff:ff:ff | Never | Special use |
+
+### Usage
+
+#### Allocate MAC Address
+
+```bash
+# Quick allocation (defaults to development pool)
+rock-mac allocate
+
+# Production allocation
+rock-mac allocate --pool production --device prod-node-01 --type qemu-vm
+
+# With metadata
+rock-mac allocate --pool vultr --device vultr-01 --metadata '{"region":"nyc3","plan":"vc2-1c-1gb"}'
+```
+
+#### List Allocations
+
+```bash
+# List all active MACs
+rock-mac list
+
+# Filter by pool
+rock-mac list --pool production
+
+# Show all (including released)
+rock-mac list --status all --limit 500
+```
+
+#### Release MAC Address
+
+```bash
+# Release by MAC address
+rock-mac release a4:58:0f:00:00:01
+
+# Release by device ID
+rock-mac release dev-node-42
+
+# Force release (even if reserved)
+rock-mac release --force a4:58:0f:ff:00:01
+```
+
+#### Reserve Specific MAC
+
+```bash
+# Reserve specific MAC
+rock-mac reserve --mac a4:58:0f:00:00:ff --device special-node
+
+# Reserve next available in pool
+rock-mac reserve --pool reserved --device monitoring-01
+```
+
+#### Show Statistics
+
+```bash
+# Pool statistics
+rock-mac stats
+
+# Detailed info for specific MAC
+rock-mac show a4:58:0f:00:00:01
+```
+
+#### Cleanup Expired
+
+```bash
+# Auto-release expired allocations
+rock-mac cleanup
+
+# Dry run (show what would be released)
+rock-mac cleanup --dry-run
+
+# Override expiration (release after 3 days)
+rock-mac cleanup --days 3
+```
+
+### Integration with Other Tools
+
+#### rock-builder Integration
+
+```bash
+# rock-builder can request MAC automatically
+MAC=$(rock-mac allocate --pool experiment --device "build-$(date +%s)" | grep "Allocated MAC:" | cut -d: -f2-)
+
+# Use in image creation
+rock-builder --mac $MAC ...
+```
+
+#### rock-image Integration
+
+```go
+// rock-image can call rock-mac programmatically
+func GetMAC(pool, deviceID string) (string, error) {
+    cmd := exec.Command("rock-mac", "allocate",
+        "--pool", pool,
+        "--device", deviceID)
+    output, err := cmd.Output()
+    // Parse MAC from output
+    return parseMAC(output), err
+}
+```
+
+#### Pipeline Integration
+
+```yaml
+# In pipeline.yaml
+stages:
+  - name: allocate-mac
+    command: rock-mac allocate --pool ${POOL} --device ${NODE_ID}
+    capture: MAC_ADDRESS
+
+  - name: create-image
+    tool: rock-image
+    args: ["--mac", "${MAC_ADDRESS}"]
+    depends: ["allocate-mac"]
+```
+
+### Database Schema
+
+```sql
+-- Main allocation table
+mac_allocations (
+    mac_address TEXT UNIQUE,  -- Full MAC (e.g., a4:58:0f:00:00:01)
+    pool TEXT,                 -- Pool name
+    device_id TEXT,            -- Device identifier
+    device_type TEXT,          -- Type (qemu-vm, docker, etc.)
+    metadata TEXT,             -- JSON metadata
+    allocated_at TIMESTAMP,    -- When allocated
+    released_at TIMESTAMP,     -- When released (if applicable)
+    status TEXT                -- active, released, reserved
+)
+
+-- Audit trail
+audit_log (
+    action TEXT,               -- allocate, release, reserve, cleanup
+    mac_address TEXT,          -- Affected MAC
+    user TEXT,                 -- Who performed action
+    timestamp TIMESTAMP        -- When it happened
+)
+```
+
+### Maintenance
+
+```bash
+# Backup database
+cp ~/.rock/mac-dispenser.db ~/.rock/mac-dispenser.db.backup
+
+# Check database integrity
+sqlite3 ~/.rock/mac-dispenser.db "PRAGMA integrity_check;"
+
+# Export allocations
+sqlite3 ~/.rock/mac-dispenser.db ".mode csv" ".headers on" \
+  "SELECT * FROM mac_allocations WHERE status='active';" > active-macs.csv
+
+# View recent activity
+sqlite3 ~/.rock/mac-dispenser.db \
+  "SELECT * FROM audit_log ORDER BY timestamp DESC LIMIT 20;"
+```
+
+### Troubleshooting
+
+#### "Database not found"
+```bash
+# Initialize database
+cd /Volumes/4TB/rock-os-tools
+./scripts/init-mac-dispenser.sh
+```
+
+#### "MAC already allocated"
+```bash
+# Check who has it
+rock-mac show a4:58:0f:XX:XX:XX
+
+# Release if needed
+rock-mac release a4:58:0f:XX:XX:XX
+```
+
+#### "Pool exhausted"
+```bash
+# Check pool usage
+rock-mac stats
+
+# Cleanup expired allocations
+rock-mac cleanup
+
+# Or use different pool
+rock-mac allocate --pool development
+```
+
+### Critical Integration Points
+
+1. **MAC Format**: Always `a4:58:0f:XX:XX:XX` (no exceptions)
+2. **Database Path**: `~/.rock/mac-dispenser.db` (hardcoded in tools)
+3. **Pool Names**: Must match configuration (case-sensitive)
+4. **Auto-Release**: Runs via cron or manual cleanup
+5. **Audit Log**: Never deleted (compliance requirement)
+
+### Testing
+
+```bash
+# Run integration test
+cd /Volumes/4TB/rock-os-tools
+./test/mac-dispenser-test.sh
+
+# Test database operations
+sqlite3 ~/.rock/mac-dispenser.db < test/mac-queries.sql
+
+# Verify pool ranges
+rock-mac stats | grep -E "production|development|experiment"
+```
+
+---
+
 **Remember: Get the paths wrong and rock-init won't boot. This is not optional.**

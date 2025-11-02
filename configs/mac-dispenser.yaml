@@ -1,0 +1,88 @@
+# MAC Address Dispenser Configuration
+# This is the default configuration for rock-mac tool
+
+mac_dispenser:
+  # MAC address configuration
+  prefix: "a4:58:0f"  # ROCK-OS OUI (Organizationally Unique Identifier)
+  start_address: "00:00:01"  # Starting counter for sequential allocation
+
+  # Database settings
+  database:
+    path: "~/.rock/mac-dispenser.db"  # Database location
+    backup_path: "~/.rock/mac-dispenser.db.backup"
+    auto_backup: true  # Backup before each write operation
+    retention_days: 365  # Keep records for 1 year
+
+  # Allocation settings
+  allocation:
+    mode: "sequential"  # "sequential" or "random"
+    reserve_first: 10  # Reserve first 10 MACs for special purposes
+    max_address: "ff:ff:ff"  # Maximum allocation (16.7 million addresses)
+    allow_reuse: true  # Allow reuse of released MACs
+
+  # Categories/pools for different environments
+  pools:
+    production:
+      range: "00:00:01-00:ff:ff"  # ~65k addresses
+      description: "Production nodes"
+      auto_release_days: 0  # Never auto-release
+
+    development:
+      range: "01:00:00-01:ff:ff"  # ~65k addresses
+      description: "Development/test nodes"
+      auto_release_days: 7  # Auto-release after 7 days of inactivity
+
+    experiment:
+      range: "02:00:00-02:ff:ff"  # ~65k addresses
+      description: "Experiment environments"
+      auto_release_days: 1  # Auto-release after 1 day
+
+    vultr:
+      range: "03:00:00-03:ff:ff"  # ~65k addresses
+      description: "Vultr cloud instances"
+      auto_release_days: 30  # Auto-release after 30 days
+
+    docker:
+      range: "04:00:00-04:ff:ff"  # ~65k addresses
+      description: "Docker containers"
+      auto_release_days: 1  # Auto-release after 1 day
+
+    kubernetes:
+      range: "05:00:00-05:ff:ff"  # ~65k addresses
+      description: "Kubernetes pods"
+      auto_release_days: 1  # Auto-release after 1 day
+
+    reserved:
+      range: "ff:00:00-ff:ff:ff"  # ~65k addresses
+      description: "Reserved for special use"
+      auto_release_days: 0  # Never auto-release
+
+# API settings (optional)
+api:
+  enabled: false  # Enable REST API
+  port: 8080
+  auth_token: ""  # Set to enable authentication
+  tls:
+    enabled: false
+    cert_path: ""
+    key_path: ""
+
+# Logging
+logging:
+  level: "info"  # debug, info, warn, error
+  file: "~/.rock/mac-dispenser.log"
+  max_size_mb: 10
+  max_backups: 3
+
+# Integration settings
+integration:
+  rock_builder:
+    auto_register: true  # Auto-register MACs with rock-builder
+  volcano:
+    auto_notify: false  # Notify Volcano server of new MACs
+    server: "localhost:50061"
+
+# Metrics (for monitoring)
+metrics:
+  enabled: false
+  prometheus_port: 9090
