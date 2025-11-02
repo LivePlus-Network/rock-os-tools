@@ -34,7 +34,7 @@ const (
 
 ## 🎯 Project Overview
 
-This project contains 10 focused tools that:
+This project contains 11 focused tools that:
 1. Solve immediate problems (work TODAY)
 2. Follow Unix philosophy (do one thing well)
 3. Will become libraries for rock-os-image-server (future)
@@ -54,6 +54,7 @@ This project contains 10 focused tools that:
 | rock-security | Security ops | Must place KEY at `/config/CONFIG_KEY` |
 | rock-cache | Cache artifacts | No direct integration requirements |
 | rock-registry | Component registry | No direct integration requirements |
+| rock-mac | MAC address dispenser | Database at ~/.rock/mac-dispenser.db, OUI a4:58:0f |
 
 ---
 
