@@ -353,6 +353,12 @@ integration_contract:
 
 ## 🔢 MAC Address Management - rock-mac Tool
 
+**Implementation follows rock-os-tools project structure:**
+- Tool code: `cmd/rock-mac/`
+- Shared database library: `pkg/mac/`
+- Integration tests: `test/integration/mac/`
+- Binary output: `bin/rock-mac`
+
 ### Overview
 
 **rock-mac** is the centralized MAC address dispenser for ROCK OS nodes. It ensures:
@@ -369,17 +375,19 @@ integration_contract:
 cd /Volumes/4TB/rock-os-tools
 ./scripts/init-mac-dispenser.sh
 
-# 2. Build rock-mac tool
-cd rock-mac
-make deps
-make build
+# 2. Build rock-mac tool (follows project structure)
+cd cmd/rock-mac
+go build -o ../../bin/rock-mac
+# OR use the Makefile from project root:
+cd /Volumes/4TB/rock-os-tools
+make rock-mac
 
 # 3. Install system-wide (optional)
-make install  # Installs to /usr/local/bin
+sudo cp bin/rock-mac /usr/local/bin/
 
 # 4. Verify installation
-rock-mac --version
-rock-mac stats
+bin/rock-mac --version
+bin/rock-mac stats
 ```
 
 ### Configuration
