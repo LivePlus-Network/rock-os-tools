@@ -153,6 +153,25 @@ func VerifyIntegration(imagePath string) error {
 }
 ```
 
+### rock-mac
+```go
+// MUST follow MAC address conventions and database structure
+func AllocateMAC(pool string) (string, error) {
+    // CRITICAL: All MACs must use ROCK OS OUI
+    const MACPrefix = "a4:58:0f"
+
+    // Database MUST be at standard location
+    dbPath := filepath.Join(os.Getenv("HOME"), ".rock", "mac-dispenser.db")
+
+    // Pool-based allocation (sequential within pool)
+    mac := fmt.Sprintf("%s:%s", MACPrefix, getNextInPool(pool))
+
+    // Integration with rock-builder and rock-image
+    // These tools can call rock-mac CLI or use pkg/mac library
+    return mac, nil
+}
+```
+
 ---
 
 ## 🧪 Testing Requirements
@@ -288,6 +307,15 @@ func CreateImage() {
     // ... create image ...
     return VerifyIntegration(image)  // ALWAYS verify
 }
+```
+
+### Mistake 5: Wrong MAC Address Format (rock-mac)
+```go
+// WRONG
+mac := "52:54:00:12:34:56"  // Wrong OUI - not ROCK OS!
+
+// CORRECT
+mac := "a4:58:0f:00:00:01"  // Must use ROCK OS OUI: a4:58:0f
 ```
 
 ---
